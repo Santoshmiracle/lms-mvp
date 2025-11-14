@@ -1,0 +1,126 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  name      String?
+  email     String   @unique
+  password  String   // hashed password
+  role      Role     @default(STUDENT)
+  image     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  courses       Course[]       @relation("InstructorCourses")
+  enrollments   Enrollment[]
+  lessonReports LessonProgress[]
+}
+
+model Course {
+  id          String     @id @default(cuid())
+  title       String
+  description String
+  price       Int        @default(0) // price in paise (for Razorpay)
+  isPaid      Boolean    @default(false)
+  thumbnail   String?
+  category    String?
+  isActive    Boolean    @default(true)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  instructor   User       @relation("InstructorCourses", fields: [instructorId], references: [id])
+  instructorId String
+
+  sections   Section[]
+  enrollments Enrollment[]
+}
+
+model Section {
+  id        String   @id @default(cuid())
+  title     String
+  order     Int
+  course    Course   @relation(fields: [courseId], references: [id])
+  courseId  String
+  lessons   Lesson[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Lesson {
+  id          String   @id @default(cuid())
+  title       String
+  order       Int
+  videoUrl    String   // YouTube/Vimeo or later S3 link
+  description String?
+  section     Section  @relation(fields: [sectionId], references: [id])
+  sectionId   String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  progresses LessonProgress[]
+}
+
+model Enrollment {
+  id        String   @id @default(cuid())
+  user      User     @relation(fields: [userId], references: [id])
+  userId    String
+  course    Course   @relation(fields: [courseId], references: [id])
+  courseId  String
+  createdAt DateTime @default(now())
+  // optional payment linkage
+  paymentId String?
+  status    EnrollmentStatus @default(ACTIVE)
+
+  @@unique([userId, courseId])
+}
+
+model LessonProgress {
+  id        String   @id @default(cuid())
+  user      User     @relation(fields: [userId], references: [id])
+  userId    String
+  lesson    Lesson   @relation(fields: [lessonId], references: [id])
+  lessonId  String
+  completed Boolean  @default(false)
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, lessonId])
+}
+
+model Payment {
+  id             String   @id @default(cuid())
+  user           User     @relation(fields: [userId], references: [id])
+  userId         String
+  course         Course   @relation(fields: [courseId], references: [id])
+  courseId       String
+  amount         Int      // paise
+  currency       String   @default("INR")
+  razorpayOrderId String  @unique
+  razorpayPaymentId String?
+  razorpaySignature String?
+  status         PaymentStatus @default(PENDING)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+enum Role {
+  STUDENT
+  INSTRUCTOR
+  ADMIN
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCESS
+  FAILED
+}
+
+enum EnrollmentStatus {
+  ACTIVE
+  CANCELLED
+}
